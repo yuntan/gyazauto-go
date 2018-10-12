@@ -14,6 +14,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -23,6 +24,8 @@ const (
 )
 
 var (
+	appNameLower = strings.ToLower(appName)
+
 	// to set it to git tag, `go install -ldflags "-X main.version=$(git describe)"`
 	version = "XXX"
 

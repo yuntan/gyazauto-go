@@ -1,18 +1,21 @@
 package main
 
 import (
-	"github.com/shibukawa/configdir"
+	"github.com/kirsle/configdir"
 	"gopkg.in/yaml.v2"
 
+	"io/ioutil"
+	"os"
 	"path/filepath"
 )
 
 const (
-	configName = "config.yaml"
+	confName = "config.yaml"
 )
 
 var (
-	confDir = configdir.New("gyazauto", "gyazauto")
+	confDir  = configdir.LocalConfig(appNameLower)
+	confPath = filepath.Join(confDir, confName)
 )
 
 var config struct {
@@ -20,61 +23,58 @@ var config struct {
 	AccessToken string   `yaml:"access_token,omitempty"`
 }
 
-// func getYamlPath() string {
-// 	// TODO AppData on windows
-// 	path, err := homedir.Expand("~/.config/gyazauto/config.yaml")
-// 	if err != nil {
-// 		log.Fatal(err)
-// 		return ""
-// 	}
-// 	return path
-// }
-
 func loadConfig() {
-	folder := confDir.QueryFolderContainsFile(configName)
-	if folder == nil {
-		log.Debug("loadConfig: %s not found", configName)
+	log.Debug("loadConfig")
+
+	err := configdir.MakePath(confDir)
+	if err != nil {
+		log.Fatalf("cannnot create config dir: %v", err)
 		return
 	}
 
-	b, err := folder.ReadFile(configName)
+	if _, err = os.Stat(confPath); os.IsNotExist(err) {
+		log.Debug("loadConfig: %s not found", confPath)
+		return
+	}
+
+	log.Info("Load config from %s", confPath)
+	b, err := ioutil.ReadFile(confPath)
 	if err != nil {
-		log.Debug("loadConfig: %v", err)
-		log.Error("Failed to load config from %s, please recheck permission",
-			filepath.Join(folder.Path, configName))
+		log.Fatalf("Failed to load config from %s, please recheck permission: %v",
+			confPath, err)
 		return
 	}
 
 	err = yaml.Unmarshal(b, &config)
 	if err != nil {
-		log.Debug("loadConfig: %v", err)
-		log.Error("Failed to load config from %s, please recheck syntax",
-			filepath.Join(folder.Path, configName))
+		log.Fatalf("Failed to load config from %s, please recheck syntax: %v",
+			confPath, err)
 		return
 	}
 
-	log.Info("Load config from %s", filepath.Join(folder.Path, configName))
+	log.Debug("loadConfig: OK")
 }
 
 func saveConfig() {
-	// err := os.MkdirAll(filepath.Dir(path), 0700)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// 	return
-	// }
+	log.Debug("saveConfig")
+
+	err := configdir.MakePath(confDir)
+	if err != nil {
+		log.Fatalf("Cannnot create config dir: %v", err)
+		return
+	}
+
 	b, err := yaml.Marshal(config)
 	if err != nil {
 		log.Fatal(err)
 		return
 	}
 
-	// store to user folder
-	// Windows: %LOCALAPPDATA%
-	// Linux: ~/.config
-	folders := confDir.QueryFolders(configdir.Global)
-	err = folders[0].WriteFile(configName, b)
+	err = ioutil.WriteFile(confPath, b, 0600)
 	if err != nil {
 		log.Fatal(err)
 		return
 	}
+
+	log.Debug("saveConfig: OK")
 }

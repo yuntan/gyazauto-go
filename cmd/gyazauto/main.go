@@ -20,7 +20,7 @@ import (
 
 const (
 	gyazoURL = "https://gyazo.com/captures"
-	appName  = "Gyazauto"
+	appName  = "GyazAuto"
 )
 
 var (
@@ -67,7 +67,9 @@ func main() {
 	}
 
 	if len(config.WatchDirs) == 0 {
-		log.Info("You don't specify watch dir. Exiting...")
+		msg := "No watch dirs selected. Exiting..."
+		beeep.Notify(appName, msg, notifyIconPath)
+		log.Info(msg)
 		os.Exit(0)
 	}
 

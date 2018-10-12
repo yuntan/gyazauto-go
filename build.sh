@@ -3,17 +3,32 @@
 build () {
   os=$1
   arch=$2
-  echo "for ${os} ${arch}bit"
+  echo "==> for ${os} ${arch}"
 
-  bin=bin/gyazauto-$(git describe)-$os$arch
+  os_name=$os
+  if [[ $os == "darwin" ]]; then
+    os_name=macos
+  fi
+
+  arch_name=64bit
+  if [[ $arch == "386" ]]; then
+    arch_name=32bit
+  fi
+
+  bin=bin/gyazauto-$(git describe)-${os_name}-${arch_name}
   if [[ $os == "windows" ]]; then
     bin=$bin.exe
   fi
-  arch_=amd64
-  if [[ $arch == "32" ]]; then
-    arch_="386"
+
+  ldflags="-X main.version=$(git describe)"
+  if [[ $os == "windows" ]]; then
+    ldflags="${ldflags} -H=windowsgui"
   fi
-  GOOS=$os GOARCH=$arch_ go build -o $bin -ldflags "-X main.version=$(git describe)" github.com/yuntan/gyazauto-go/cmd/gyazauto
+
+  pkg=github.com/yuntan/gyazauto-go/cmd/gyazauto
+
+  GOOS=$os GOARCH=$arch go build -o $bin -ldflags "$ldflags" $pkg \
+    && echo "--> generated $bin"
 }
 
 if [ $# == 2 ]; then
@@ -22,9 +37,9 @@ if [ $# == 2 ]; then
 fi
 
 for os in linux darwin windows; do
-  build $os 64
+  build $os amd64
 done
 
 for os in linux windows; do
-  build $os 32
+  build $os 386
 done

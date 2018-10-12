@@ -1,2 +1,3 @@
 /cmd/gyazauto/secret.go
+/cmd/gyazauto/bindata.go
 /bin

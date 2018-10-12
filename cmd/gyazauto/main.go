@@ -1,15 +1,25 @@
+//go:generate go-assets-builder -s="/assets" -o=bindata.go ../../assets
 package main
 
 import (
 	"github.com/atotto/clipboard"
+	"github.com/gen2brain/beeep"
+	"github.com/getlantern/systray"
 	"github.com/mitchellh/go-homedir"
 	"github.com/pkg/browser"
 	"gopkg.in/fsnotify.v1"
 
 	"flag"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"os"
 	"time"
+)
+
+const (
+	gyazoURL = "https://gyazo.com/captures"
+	appName  = "Gyazauto"
 )
 
 var (
@@ -20,8 +30,9 @@ var (
 	verbose      bool
 	openOnUpload bool
 
-	chNotify = make(chan fsnotify.Event)
-	watcher  *fsnotify.Watcher
+	chNotify       = make(chan fsnotify.Event)
+	watcher        *fsnotify.Watcher
+	notifyIconPath string
 )
 
 func init() {
@@ -42,6 +53,9 @@ func main() {
 		log.Warning("Clipboard feature may not works")
 	}
 
+	copyIcon()
+	defer os.Remove(notifyIconPath)
+
 	loadConfig()
 
 	if config.AccessToken == "" {
@@ -59,8 +73,26 @@ func main() {
 		log.Info("  %s", s)
 	}
 	setupWatcher()
-	watcherLoop()
+	go watcherLoop()
 	defer watcher.Close()
+
+	// must be run on main loop
+	systray.Run(onSystrayReady, onSystrayQuit)
+}
+
+func copyIcon() {
+	// copy notification icon
+	f, err := ioutil.TempFile("", "*.ico")
+	if err != nil {
+		log.Error("Failed to open temp file: %v", err)
+		return
+	}
+	notifyIconPath = f.Name()
+	icon, _ := Assets.Open("/app.ico")
+	_, err = io.Copy(f, icon)
+	if err != nil {
+		log.Error("Failed to copy icon: %v", err)
+	}
 }
 
 func setupWatcher() {
@@ -123,6 +155,9 @@ func watcherLoop() {
 					}
 				}
 
+				// show notification
+				beeep.Notify("Uploaded screenshot to Gyazo", "Copied Gyazo URL to clipboard", notifyIconPath)
+
 				// copy to clipboard
 				if err := clipboard.WriteAll(url); err != nil {
 					log.Error("Failed to write to clipboard: %v", err)
@@ -135,4 +170,33 @@ func watcherLoop() {
 			log.Error("Filesystem watcher unexpectedly crashed: %v", err)
 		}
 	}
+}
+
+func onSystrayReady() {
+	log.Debug("onSystrayReady")
+
+	r, _ := Assets.Open("/notification.ico")
+	icon, _ := ioutil.ReadAll(r)
+	systray.SetIcon(icon)
+	systray.SetTitle(appName)
+	systray.SetTooltip(appName)
+	mOpen := systray.AddMenuItem("Open Gyazo", "")
+	mQuit := systray.AddMenuItem("Quit", "")
+
+	go func() {
+		for {
+			<-mOpen.ClickedCh
+			if err := browser.OpenURL(gyazoURL); err != nil {
+				log.Error("Failed to open browser: %v", err)
+			}
+		}
+	}()
+	go func() {
+		<-mQuit.ClickedCh
+		systray.Quit()
+	}()
+}
+
+func onSystrayQuit() {
+	log.Debug("onSystrayQuit")
 }
